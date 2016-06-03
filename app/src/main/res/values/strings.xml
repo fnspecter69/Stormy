@@ -17,5 +17,7 @@
     <string name="invalid_lat_long_used"><![CDATA[Invalid value for Lat & Long]]></string>
     <string name="service_not_available">The Service is not available</string>
     <string name="no_geocoder_available">GeoCoder not available</string>
+    <string name="timelabel">"The time is "</string>
+    <string name="cityaddress">City_Address</string>
 
 </resources>

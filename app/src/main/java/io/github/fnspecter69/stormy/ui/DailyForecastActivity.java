@@ -24,6 +24,7 @@ public class DailyForecastActivity extends Activity {
     private Day[] mDays;
     @Bind(android.R.id.list) ListView mListView;
     @Bind(android.R.id.empty) TextView mEmptyTextView;
+    @Bind(R.id.locationLabel) TextView mLocationLabel;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -50,5 +51,7 @@ public class DailyForecastActivity extends Activity {
                 Toast.makeText(DailyForecastActivity.this, msg, Toast.LENGTH_LONG).show();
             }
         });
+        Bundle bundle = getIntent().getExtras();
+        mLocationLabel.setText(bundle.getString(getString(R.string.cityaddress)));
     }
 }

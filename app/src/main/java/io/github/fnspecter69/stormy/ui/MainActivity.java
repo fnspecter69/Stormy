@@ -1,5 +1,6 @@
 package io.github.fnspecter69.stormy.ui;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentSender;
@@ -61,13 +62,13 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
     public static final String TAG = MainActivity.class.getSimpleName();
     public static final String DAILY_FORECAST = "DAILY_FORECAST";
     public static final String HOURLY_FORECAST = "HOURLY_FORECAST";
-
     private Forecast mForecast;
     private GoogleApiClient mGoogleApiClient;
     private final static int CONNECTION_FAILURE_RESOLUTION_REQUEST = 9000;
     private LocationRequest mLocationRequest;
     protected Location mLastLocation;
     private AddressResultReceiver mResultReceiver;
+    protected String mAddressOutput;
 
     @Bind(R.id.temperatureLabel) TextView mTemperatureLabel;
     @Bind(R.id.timeLabel) TextView mTimeLabel;
@@ -77,7 +78,7 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
     @Bind(R.id.iconImageView) ImageView mIconImageView;
     @Bind(R.id.refreshImageView) ImageView mRefreshImageView;
     @Bind(R.id.progressBar) ProgressBar mProgressBar;
-    @Bind(R.id.locationLabel) TextView mLocationLabel;
+    @Bind(R.id.locationLabel) TextView mLocationLabel; //use timezone or location
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -90,11 +91,14 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
 
         buildGoogleApiClient();
 
-        // Create the LocationRequest object
-        mLocationRequest = LocationRequest.create()
-                .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY)
-                .setInterval(10 * 1000)        // 10 seconds, in milliseconds
-                .setFastestInterval(1 * 1000); // 1 second, in milliseconds
+        // Create an instance of GoogleAPIClient.
+        if (mGoogleApiClient == null) {
+            mGoogleApiClient = new GoogleApiClient.Builder(this)
+                    .addConnectionCallbacks(this)
+                    .addOnConnectionFailedListener(this)
+                    .addApi(LocationServices.API)
+                    .build();
+        }
 
         mRefreshImageView.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -106,8 +110,12 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
         Log.d(TAG, "Main UI is running");
     }
 
+    /**
+     * fetch last known street address
+     */
     protected void startIntentService() {
         Intent intent = new Intent(this, FetchAddressIntentService.class);
+        mResultReceiver = new AddressResultReceiver(new Handler());
         intent.putExtra(Constants.RECEIVER, mResultReceiver);
         intent.putExtra(Constants.LOCATION_DATA_EXTRA, mLastLocation);
         startService(intent);
@@ -203,11 +211,11 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
         Current current = mForecast.getCurrent();
 
         mTemperatureLabel.setText(current.getTemperature() + "");
-        mTimeLabel.setText("The time is " + current.getFormattedTime());
+        mTimeLabel.setText(getString(R.string.timelabel) + current.getFormattedTime());
         mHumidityValue.setText(current.getHumidity() + "");
         mPrecipValue.setText(current.getPrecipChance() + "%");
         mSummaryLabel.setText(current.getSummary());
-        mLocationLabel.setText(current.getTimeZone());
+        displayAddressOutput();
 
         Drawable drawable =
                 ResourcesCompat.getDrawable(getResources(), current.getIconId(), null);
@@ -313,6 +321,17 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
     }
 
     @Override
+    protected void onStart() {
+        mGoogleApiClient.connect();
+        super.onStart();
+    }
+
+    protected void onStop() {
+        mGoogleApiClient.disconnect();
+        super.onStop();
+    }
+
+    @Override
     public void onResume(){
         super.onResume();
         mGoogleApiClient.connect();
@@ -333,19 +352,30 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
         //get last location
         mLastLocation = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
         if (mLastLocation == null) {
-            LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient,
-                    mLocationRequest, this);
+            try {
+                LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient,
+                        mLocationRequest, this);
+            }catch (NullPointerException e){
+                alertGPSError();
+            }
             if(!Geocoder.isPresent()){
                 Toast.makeText(this, R.string.no_geocoder_available,
                         Toast.LENGTH_LONG).show();
                 return;
             }
-            alertGPSError();
         }
         else {
             handleNewLocation(mLastLocation); //handle new location
             startIntentService();
         }
+
+    }
+
+    /**
+     * setLocation address
+     */
+    private void displayAddressOutput(){
+        mLocationLabel.setText(mAddressOutput);
     }
 
     @Override
@@ -406,6 +436,7 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
     public void startDailyActivity(View view){
         Intent intent = new Intent(this, DailyForecastActivity.class);
         intent.putExtra(DAILY_FORECAST, mForecast.getDailyForecast());
+        intent.putExtra(getString(R.string.cityaddress), mAddressOutput);
         startActivity(intent);
     }
 
@@ -416,6 +447,7 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
         startActivity(hourIntent);
     }
 
+    @SuppressLint("ParcelCreator")
     class AddressResultReceiver extends ResultReceiver {
         public AddressResultReceiver(Handler handler) {
             super(handler);
@@ -429,9 +461,9 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
             mAddressOutput = resultData.getString(Constants.RESULT_DATA_KEY);
             displayAddressOutput();
 
-            // Show a toast message if an address was found.
+            // Show a log message if an address was found.
             if (resultCode == Constants.SUCCESS_RESULT) {
-                showToast(getString(R.string.address_found));
+                Log.d("Location Found", "Address Found");
             }
 
         }

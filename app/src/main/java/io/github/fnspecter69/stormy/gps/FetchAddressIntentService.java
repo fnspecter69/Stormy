@@ -26,7 +26,7 @@ import io.github.fnspecter69.stormy.R;
  */
 public class FetchAddressIntentService extends IntentService {
     public static final String TAG = FetchAddressIntentService.class.getSimpleName();
-    protected ResultReceiver mReceiver;
+    protected ResultReceiver mReceiver; //this needs to be initialized
 
     public FetchAddressIntentService(){
         super("FetchAddressService");
@@ -36,14 +36,10 @@ public class FetchAddressIntentService extends IntentService {
         super(name);
     }
 
-    private void deliverResultToReceiver(int resultCode, String message) {
-        Bundle bundle = new Bundle();
-        bundle.putString(Constants.RESULT_DATA_KEY, message);
-        mReceiver.send(resultCode, bundle);
-    }
 
     @Override
     protected void onHandleIntent(Intent intent) {
+        mReceiver = intent.getParcelableExtra(Constants.RECEIVER);
         Geocoder geocoder = new Geocoder(this, Locale.getDefault());
         String errorMessage = "";
 
@@ -53,11 +49,10 @@ public class FetchAddressIntentService extends IntentService {
 
         List<Address> addresses = null;
 
-        try {
+        try { //get a simple address
             addresses = geocoder.getFromLocation(
                     location.getLatitude(),
                     location.getLongitude(),
-                    // In this sample, get just a single address.
                     1);
         } catch (IOException ioException) {
             // Catch network or other I/O problems.
@@ -81,17 +76,16 @@ public class FetchAddressIntentService extends IntentService {
             deliverResultToReceiver(Constants.FAILURE_RESULT, errorMessage);
         } else {
             Address address = addresses.get(0);
-            ArrayList<String> addressFragments = new ArrayList<String>();
-
-            // Fetch the address lines using getAddressLine,
-            // join them, and send them to the thread.
-            for (int i = 0; i < address.getMaxAddressLineIndex(); i++) {
-                addressFragments.add(address.getAddressLine(i));
-            }
+            //get city name only
             Log.i(TAG, getString(R.string.address_found));
-            deliverResultToReceiver(Constants.SUCCESS_RESULT,
-                    TextUtils.join(System.getProperty("line.separator"),
-                            addressFragments));
+
+            deliverResultToReceiver(Constants.SUCCESS_RESULT, address.getAddressLine(1));
         }
+    }
+
+    private void deliverResultToReceiver(int resultCode, String message) {
+        Bundle bundle = new Bundle();
+        bundle.putString(Constants.RESULT_DATA_KEY, message);
+        mReceiver.send(resultCode, bundle);
     }
 }
